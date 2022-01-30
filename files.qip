@@ -5,8 +5,14 @@ set_global_assignment -name VHDL_FILE rtl/T6502/T65_ALU.vhd
 set_global_assignment -name VHDL_FILE rtl/T6502/T65.vhd
 set_global_assignment -name VHDL_FILE rtl/via6522.vhd
 set_global_assignment -name VHDL_FILE rtl/ElectronULA.vhd
+set_global_assignment -name VHDL_FILE rtl/OVO.vhd
 set_global_assignment -name VHDL_FILE rtl/ElectronFpga_core.vhd
+#set_global_assignment -name VHDL_FILE rtl/virtual_cassette.vhd
+#set_global_assignment -name VHDL_FILE rtl/vcas.vhd
 set_global_assignment -name QIP_FILE rtl/RAM_32k_DualPort.qip
 set_global_assignment -name QIP_FILE rtl/xtra_pll.qip
 set_global_assignment -name SIP_FILE rtl/xtra_pll.sip
+set_global_assignment -name VERILOG_FILE rtl/cassette.v
+set_global_assignment -name VERILOG_FILE rtl/square_gen.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE AcornElectron.sv

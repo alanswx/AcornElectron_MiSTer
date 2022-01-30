@@ -175,7 +175,7 @@ assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
  
-assign LED_USER  = ioctl_download | (vsd_sel & sd_act);
+assign LED_USER  = cas_relay| ioctl_download | (vsd_sel & sd_act);
 assign LED_DISK  = {1'b1,~vsd_sel & sd_act};
 assign LED_POWER = 0;
 
@@ -196,20 +196,24 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 parameter CONF_STR = {
 	"AcornElectron;;",
 	"-;",
-//	"S,VHD;",
+	"S0,VHD;",
 //	"OC,Autostart,Yes,No;",
 	"-;",
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O35,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;", 
 	"OA,Swap Joysticks,No,Yes;",
-//	"OL,D-Pad Joystick emu,No,Yes;",
+	"-;",
+	"OC,Tape Input,File,ADC;",
+	"H0F2,CAS,Load Cassette;",
+	"H0TF,Stop & Rewind;",
+	"OD,Monitor Tape Sound,No,Yes;",
 	"-;",
 //	"O4,Model,B(MOS6502),Master(R65SC12);",
 //	"O56,Co-Processor,None,MOS65C02;",
 //	"O78,VIDEO,sRGB-interlaced,sRGB-non-interlaced,SVGA-50Hz,SVGA-60Hz;",
 	"-;",
 	"R0,Reset;",
-	"JA,Fire;",
+	"JA,Fire,Up,Down;",
 	"V,v",`BUILD_DATE
 };
 
@@ -248,7 +252,8 @@ pll pll
 	.outclk_4(clk_48),
 	.outclk_5(clk_96),
 	.outclk_6(clk_80),
-	.outclk_7(clk_64)
+	.outclk_7(clk_64),
+	.locked(locked)
 );
 
 /*
@@ -313,6 +318,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.gamma_bus(gamma_bus),
 	.direct_video(direct_video),
 
+	.status_menumask({status[12]}),
 
 	.ps2_key(ps2_key),
 
@@ -343,7 +349,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 /////////////////  RESET  /////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | (~status[12] & img_mounted);
+wire reset = RESET | status[0] | buttons[1] ;
 
 ////////////////  MEMORY  /////////////////////////
 
@@ -518,9 +524,10 @@ ElectronFpga_core Electron
 	.SDSS(sdss),
 
 	.caps_led(),
-	.motor_led(),
+	.motor_led(cas_relay),
 	
-	.cassette_in(adc_cassette_bit ),
+	//.cassette_in(status[12] ? adc_cassette_bit : casdout ),
+	.cassette_in( casdout ),
 	.cassette_out(),
 	//     -- Format of Video
    //     -- 00 - sRGB - interlaced
@@ -550,8 +557,10 @@ ElectronFpga_core Electron
 );
 
 wire  audio_snl,audio_snr;
+wire [11:0] sound = {12{audio_snl}};
+wire [15:0] sound_pad =  {1'b0,sound[11:8], sound[7] ^ (status[13] ? (status[12] ? adc_cassette_bit : casdout) : 1'b0), sound[6:0], 3'b0};
 
-assign AUDIO_L = {16{audio_snl}};
+assign AUDIO_L = sound_pad;
 assign AUDIO_R = {16{audio_snr}};
 assign AUDIO_MIX = 0;
 assign AUDIO_S = 0;
@@ -715,7 +724,125 @@ always @(posedge CLK_50M) begin
 end
 
 
+wire casdout;
+wire cas_relay;
 
+
+
+wire locked;
+wire [24:0] sdram_addr;
+wire [7:0] sdram_data;
+wire sdram_rd;
+wire load_tape = ioctl_index == 2;
+
+sdram sdram
+(
+	.*,
+	.init(~locked),
+	.clk(clk_sys),
+	.addr(ioctl_download ? ioctl_addr : sdram_addr),
+	.wtbt(0),
+	.dout(sdram_data),
+	.din(ioctl_dout),
+	.rd(sdram_rd),
+	.we(ioctl_wr & load_tape),
+	.ready()
+);
+
+reg [23:0] stp = 24'd6666;
+reg oldup;
+reg olddown;
+always @(posedge clk_sys) begin
+oldup<=joy1[4];
+olddown<=joy1[5];
+
+	if (~oldup & joy1[4])
+		stp<=stp+24'd100;
+	if (~olddown & joy1[5])
+		stp<=stp-24'd100;
+end
+
+
+cassette cassette(
+  .clk(clk_sys),
+
+  .rewind(status[15]),
+  .en(cas_relay),
+  .stp(stp),
+  .sdram_addr(sdram_addr),
+  .sdram_data(sdram_data),
+  .sdram_rd(sdram_rd),
+
+  .data(casdout)
+//   .status(tape_status)
+);
+
+/*
+Virtual_Cassette Virtual_Cassette(
+   // -- Clocks (Assumes 32MHz sys with 1:4 enable)
+	.i_clk(clk_sys),
+	.i_ena(?),
+	.r_rst(reset),
+	
+	.i_motor(cas_relay),
+	.i_play(1'b0),
+	.i_rec(1'b0),
+	.i_ffwd(1'b0),
+	.i_rwnd(1'b0),
+	
+    //-- Pulse based cassette i/o (0 = 1200Hz and 1 = 2400Hz)
+	.i_cas_to_fch(1'b0),
+	.o_cas_fm_fch(casdout),
+
+	
+    //-- When true, requests switch of o_cas_fm_fch from pulse to avail/taken protocol
+    .i_cas_turbo(1'b0),
+    .i_cas_taken(1'b0),
+
+    .o_cas_turbo(),
+    .o_cas_avail() ,
+
+    .o_debug()
+  );
+
+*/
+
+
+reg [3:0] C_R,C_G,C_B;
+reg [159:0] Line1,Line2;
+
+assign Line1[4:0] = 5'b10000;
+assign Line1[8:5] = stp[15:12];
+assign Line1[12:9] = stp[11:8];
+assign Line1[16:13] = stp[7:4];
+assign Line1[20:17] = stp[3:0];
+
+							//HEX1(29 downto 25) <= "10000"; -- Space
+							//HEX1(33 downto 30) <= wave_right(15 downto 12);
+							//HEX1(38 downto 35) <= wave_right(11 downto 8);
+							//HEX1(43 downto 40) <= wave_right(7 downto 4);
+							//HEX1(48 downto 45) <= wave_right(3 downto 0);
+							//HEX1(54 downto 50) <= "10000"; -- Space
+
+ovo OVERLAY
+(
+    .i_r(4'd0),
+    .i_g(4'd0),
+    .i_b(4'd0),
+    .i_clk(CLK_VIDEO),
+	 .i_pix(ce_pix2),
+	 
+	 .i_Hcount(HCount),
+	 .i_VCount(VCount),
+
+    .o_r(C_R),
+    .o_g(C_G),
+    .o_b(C_B),
+    .ena(status[11]),
+
+    .in0(Line1),
+    .in1(Line2)
+);
 
 
 endmodule
