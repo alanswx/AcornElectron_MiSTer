@@ -65,7 +65,7 @@ always @(posedge pulse or posedge start) begin
   end
   else if (en) begin
     cnt <= cnt + 2'd1;
-    if ({ ~data[0], 1'b1 } == cnt)  begin
+    if (2'd3 == cnt)  begin
       cnt <= 2'd0;
       nbit <= nbit + 3'd1;
       data <= { 1'b0, data[7:1] };
