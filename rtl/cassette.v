@@ -127,7 +127,7 @@ square_gen sq(
   .start(sq_start),
   .din(ibyte),
   .done(done),
-  .dout (data),
+  .dout (data)
 );
 
 

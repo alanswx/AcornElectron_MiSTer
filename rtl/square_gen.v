@@ -25,8 +25,8 @@ module square_gen(
   //  parameter STP = 24'd3333; //  
 
   
-//parameter STP = 24'd6666; //  
-parameter STP = 24'd3333; //  
+parameter STP = 24'd6666; //  
+//parameter STP = 24'd3333; //  
 
 //parameter STP = 24'd5044; //  
 
