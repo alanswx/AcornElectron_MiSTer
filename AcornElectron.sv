@@ -771,7 +771,7 @@ end
 cassette cassette(
   .clk(clk_sys),
 
-  .rewind(status[15] | load_tape),
+  .rewind(status[15] | (load_tape&ioctl_download)),
   .en(cas_relay),
   .stp(stp),
   .sdram_addr(sdram_addr),
