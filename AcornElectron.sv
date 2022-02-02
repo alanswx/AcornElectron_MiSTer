@@ -204,7 +204,7 @@ parameter CONF_STR = {
 	"OA,Swap Joysticks,No,Yes;",
 	"-;",
 	"OC,Tape Input,File,ADC;",
-	"H0F2,CAS,Load Cassette;",
+	"H0F2,UEFCAS,Load Cassette;",
 	"H0TF,Stop & Rewind;",
 	"OD,Monitor Tape Sound,No,Yes;",
 	"-;",
@@ -733,7 +733,8 @@ wire locked;
 wire [24:0] sdram_addr;
 wire [7:0] sdram_data;
 wire sdram_rd;
-wire load_tape = ioctl_index == 2;
+wire load_tape = ioctl_index[5:0] == 2;
+reg [24:0] tape_end;
 
 sdram sdram
 (
@@ -762,17 +763,22 @@ olddown<=joy1[5];
 		stp<=stp-24'd100;
 end
 
+always @(posedge clk_sys) begin
+ if (load_tape) tape_end <= ioctl_addr;
+end
+
 
 cassette cassette(
   .clk(clk_sys),
 
-  .rewind(status[15]),
+  .rewind(status[15] | load_tape),
   .en(cas_relay),
   .stp(stp),
   .sdram_addr(sdram_addr),
   .sdram_data(sdram_data),
   .sdram_rd(sdram_rd),
 
+  .tape_end(tape_end),
   .data(casdout)
 //   .status(tape_status)
 );

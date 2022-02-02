@@ -11,6 +11,8 @@ module cassette(
   input [7:0] sdram_data,
   output reg sdram_rd,
 
+  input [24:0] tape_end,
+
   output data,
   output [2:0] status
 
@@ -73,6 +75,9 @@ always @(posedge clk) begin
     NEXT: begin
       state <= READ1;
       sdram_rd <= 1'b0;
+
+      if (sdram_addr == tape_end) eof<=2'd2;
+
       //if (seq == 24'h553c00) name <= 1'd1;
       //if (seq == 24'h555555 && name) begin
       //  name <= 1'd0;
